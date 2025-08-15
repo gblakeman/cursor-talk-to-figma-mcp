@@ -1,4 +1,18 @@
+# Environment files (contains sensitive API keys)
+.env
+
+# Ignore dependencies
 node_modules/
-.cursor/
+
+# Temporary files and debug output
+tmp/
+
+# Build output
+build/
 dist/
-docs/
+
+# Generated files
+manifest.json
+
+# Configuration files with sensitive data
+.plugin-config
