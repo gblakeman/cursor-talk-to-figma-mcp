@@ -1,5 +1,5 @@
 {
-  "name": "Cursor MCP Plugin",
+  "name": "[LI Fork] Cursor MCP Plugin",
   "id": "PLUGIN_ID",
   "api": "1.0.0",
   "main": "code.js",
