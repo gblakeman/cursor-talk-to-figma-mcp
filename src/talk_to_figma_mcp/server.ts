@@ -636,6 +636,43 @@ server.tool(
   }
 );
 
+// Set Variable Fill Tool
+server.tool(
+  "set_variable_fill",
+  "Apply a Figma variable to a node's fill by variable key",
+  {
+    nodeId: z.string().describe("The ID of the node to modify"),
+    variableKey: z.string().describe("The key of the Figma variable to apply to the fill"),
+  },
+  async ({ nodeId, variableKey }: any) => {
+    try {
+      const result = await sendCommandToFigma("set_variable_fill", {
+        nodeId,
+        variableKey,
+      });
+      const typedResult = result as { name: string; variableName: string };
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Applied variable "${typedResult.variableName}" to fill of node "${typedResult.name}"`,
+          },
+        ],
+      };
+    } catch (error) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Error setting variable fill: ${error instanceof Error ? error.message : String(error)
+              }`,
+          },
+        ],
+      };
+    }
+  }
+);
+
 // Set Stroke Color Tool
 server.tool(
   "set_stroke_color",
@@ -2548,6 +2585,7 @@ type FigmaCommand =
   | "create_frame"
   | "create_text"
   | "set_fill_color"
+  | "set_variable_fill"
   | "set_stroke_color"
   | "move_node"
   | "resize_node"
@@ -2618,6 +2656,10 @@ type CommandParams = {
     g: number;
     b: number;
     a?: number;
+  };
+  set_variable_fill: {
+    nodeId: string;
+    variableKey: string;
   };
   set_stroke_color: {
     nodeId: string;

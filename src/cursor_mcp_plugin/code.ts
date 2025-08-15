@@ -131,6 +131,8 @@ async function handleCommand(command, params) {
       return await createText(params);
     case "set_fill_color":
       return await setFillColor(params);
+    case "set_variable_fill":
+      return await setVariableFill(params);
     case "set_stroke_color":
       return await setStrokeColor(params);
     case "move_node":
@@ -948,6 +950,64 @@ async function setFillColor(params) {
     id: node.id,
     name: node.name,
     fills: [paintStyle],
+  };
+}
+
+async function setVariableFill(params) {
+  console.log("setVariableFill", params);
+  const { nodeId, variableKey } = params || {};
+
+  if (!nodeId) {
+    throw new Error("Missing nodeId parameter");
+  }
+
+  if (!variableKey) {
+    throw new Error("Missing variableKey parameter");
+  }
+
+  const node = await figma.getNodeByIdAsync(nodeId);
+  if (!node) {
+    throw new Error(`Node not found with ID: ${nodeId}`);
+  }
+
+  if (!("fills" in node)) {
+    throw new Error(`Node does not support fills: ${nodeId}`);
+  }
+
+  // Import the variable by its key (works for both local and external variables)
+  const variable = await figma.variables.importVariableByKeyAsync(variableKey);
+  if (!variable) {
+    throw new Error(`Variable with key ${variableKey} not found or could not be imported`);
+  }
+
+  // Check if the variable is a color variable
+  if (variable.resolvedType !== 'COLOR') {
+    throw new Error(`Variable "${variable.name}" is not a color variable (type: ${variable.resolvedType})`);
+  }
+
+  // Create new fill with the variable
+  const variableFill = {
+    type: "SOLID" as const,
+    color: { r: 1, g: 1, b: 1 }, // Default color, will be overridden by variable
+    boundVariables: {
+      color: {
+        type: 'VARIABLE_ALIAS' as const,
+        id: variable.id
+      }
+    }
+  };
+
+  console.log("variableFill", variableFill);
+
+  // Set the fills array with the new variable fill
+  node.fills = [variableFill];
+
+  return {
+    id: node.id,
+    name: node.name,
+    variableName: variable.name,
+    variableKey: variable.key,
+    fills: [variableFill],
   };
 }
 
