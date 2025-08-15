@@ -1,3 +1,5 @@
+/// <reference types="@figma/plugin-typings" />
+
 // This is the main code file for the Cursor MCP Figma plugin
 // It handles Figma API commands
 
