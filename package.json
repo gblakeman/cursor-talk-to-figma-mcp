@@ -16,6 +16,7 @@
     "start": "bun run dist/server.js",
     "socket": "bun run src/socket.ts",
     "setup": "./scripts/setup.sh",
+    "setup-manifest": "PLUGIN_ID=$(grep PLUGIN_ID .plugin-config | cut -d= -f2) && sed \"s/PLUGIN_ID/$PLUGIN_ID/g\" ./src/cursor_mcp_plugin/manifest.example.json > src/cursor_mcp_plugin/manifest.json && echo \"✅ manifest.json updated with plugin ID: $PLUGIN_ID\"",
     "build": "tsup",
     "build:watch": "tsup --watch",
     "dev": "bun run build:watch",
