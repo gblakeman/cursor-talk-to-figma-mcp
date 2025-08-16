@@ -751,6 +751,48 @@ server.tool(
   }
 );
 
+// Move Node to Container Tool
+server.tool(
+  "move_node_to_container",
+  "Move a node from its current parent to a new container, preserving the node ID",
+  {
+    nodeId: z.string().describe("The ID of the node to move"),
+    containerNodeId: z.string().describe("The ID of the destination container node"),
+  },
+  async ({ nodeId, containerNodeId }: any) => {
+    try {
+      const result = await sendCommandToFigma("move_node_to_container", {
+        nodeId,
+        containerNodeId,
+      });
+      const typedResult = result as {
+        nodeId: string;
+        nodeName: string;
+        containerName: string;
+        oldParentName: string;
+      };
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Successfully moved node "${typedResult.nodeName}" (ID: ${typedResult.nodeId}) from "${typedResult.oldParentName}" to container "${typedResult.containerName}"`,
+          },
+        ],
+      };
+    } catch (error) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Error moving node to container: ${error instanceof Error ? error.message : String(error)
+              }`,
+          },
+        ],
+      };
+    }
+  }
+);
+
 // Clone Node Tool
 server.tool(
   "clone_node",
@@ -1239,13 +1281,15 @@ server.tool(
     componentKey: z.string().describe("Key of the component to instantiate"),
     x: z.number().describe("X position"),
     y: z.number().describe("Y position"),
+    parentId: z.string().optional().describe("Optional parent node ID to add the instance to"),
   },
-  async ({ componentKey, x, y }: any) => {
+  async ({ componentKey, x, y, parentId }: any) => {
     try {
       const result = await sendCommandToFigma("create_component_instance", {
         componentKey,
         x,
         y,
+        parentId,
       });
       const typedResult = result as any;
       return {
@@ -1262,6 +1306,54 @@ server.tool(
           {
             type: "text",
             text: `Error creating component instance: ${error instanceof Error ? error.message : String(error)
+              }`,
+          },
+        ],
+      };
+    }
+  }
+);
+
+// Import Component Tool
+server.tool(
+  "import_component",
+  "Import a component by key and add it as an instance to a container node",
+  {
+    componentKey: z.string().describe("The key of the component to import"),
+    containerNodeId: z.string().describe("The ID of the container node (frame, etc.) to add the component to"),
+    x: z.number().optional().describe("X position within the container (default: 0)"),
+    y: z.number().optional().describe("Y position within the container (default: 0)"),
+    name: z.string().optional().describe("Optional name for the component instance"),
+  },
+  async ({ componentKey, containerNodeId, x, y, name }: any) => {
+    try {
+      const result = await sendCommandToFigma("import_component", {
+        componentKey,
+        containerNodeId,
+        x: x || 0,
+        y: y || 0,
+        name,
+      });
+      const typedResult = result as { 
+        instanceId: string; 
+        instanceName: string; 
+        componentName: string; 
+        containerName: string;
+      };
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Successfully imported component "${typedResult.componentName}" as instance "${typedResult.instanceName}" (ID: ${typedResult.instanceId}) into container "${typedResult.containerName}"`,
+          },
+        ],
+      };
+    } catch (error) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Error importing component: ${error instanceof Error ? error.message : String(error)
               }`,
           },
         ],
@@ -2588,12 +2680,14 @@ type FigmaCommand =
   | "set_variable_fill"
   | "set_stroke_color"
   | "move_node"
+  | "move_node_to_container"
   | "resize_node"
   | "delete_node"
   | "delete_multiple_nodes"
   | "get_styles"
   | "get_local_components"
   | "create_component_instance"
+  | "import_component"
   | "get_instance_overrides"
   | "set_instance_overrides"
   | "export_node_as_image"
@@ -2674,6 +2768,10 @@ type CommandParams = {
     x: number;
     y: number;
   };
+  move_node_to_container: {
+    nodeId: string;
+    containerNodeId: string;
+  };
   resize_node: {
     nodeId: string;
     width: number;
@@ -2692,6 +2790,14 @@ type CommandParams = {
     componentKey: string;
     x: number;
     y: number;
+    parentId?: string;
+  };
+  import_component: {
+    componentKey: string;
+    containerNodeId: string;
+    x?: number;
+    y?: number;
+    name?: string;
   };
   get_instance_overrides: {
     instanceNodeId: string | null;

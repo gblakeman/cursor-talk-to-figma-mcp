@@ -137,6 +137,8 @@ async function handleCommand(command, params) {
       return await setStrokeColor(params);
     case "move_node":
       return await moveNode(params);
+    case "move_node_to_container":
+      return await moveNodeToContainer(params);
     case "resize_node":
       return await resizeNode(params);
     case "delete_node":
@@ -151,6 +153,8 @@ async function handleCommand(command, params) {
     //   return await getTeamComponents();
     case "create_component_instance":
       return await createComponentInstance(params);
+    case "import_component":
+      return await importComponent(params);
     case "export_node_as_image":
       return await exportNodeAsImage(params);
     case "set_corner_radius":
@@ -1096,6 +1100,59 @@ async function moveNode(params) {
   };
 }
 
+async function moveNodeToContainer(params) {
+  console.log("moveNodeToContainer", params);
+  const { nodeId, containerNodeId } = params || {};
+
+  if (!nodeId) {
+    throw new Error("Missing nodeId parameter");
+  }
+
+  if (!containerNodeId) {
+    throw new Error("Missing containerNodeId parameter");
+  }
+
+  // Get the node to move
+  const node = await figma.getNodeByIdAsync(nodeId);
+  if (!node) {
+    throw new Error(`Node not found with ID: ${nodeId}`);
+  }
+
+  // Get the destination container
+  const containerNode = await figma.getNodeByIdAsync(containerNodeId);
+  if (!containerNode) {
+    throw new Error(`Container node not found with ID: ${containerNodeId}`);
+  }
+
+  // Check if the container node can have children
+  if (!("appendChild" in containerNode)) {
+    throw new Error(`Node type ${containerNode.type} cannot contain children: ${containerNodeId}`);
+  }
+
+  // Store information about the old parent for reporting
+  const oldParent = node.parent;
+  const oldParentName = oldParent ? oldParent.name : "None";
+
+  try {
+    // Move the node to the new container (appendChild automatically removes from old parent)
+    (containerNode as any).appendChild(node);
+
+    console.log(`Successfully moved node "${node.name}" from "${oldParentName}" to container "${containerNode.name}"`);
+
+    return {
+      success: true,
+      nodeId: node.id,
+      nodeName: node.name,
+      containerName: containerNode.name,
+      containerId: containerNode.id,
+      oldParentName: oldParentName,
+    };
+  } catch (error) {
+    console.error("Error moving node to container:", error);
+    throw new Error(`Failed to move node to container: ${error.message}`);
+  }
+}
+
 async function resizeNode(params) {
   const { nodeId, width, height } = params || {};
 
@@ -1222,7 +1279,7 @@ async function getLocalComponents() {
 // }
 
 async function createComponentInstance(params) {
-  const { componentKey, x = 0, y = 0 } = params || {};
+  const { componentKey, x = 0, y = 0, parentId } = params || {};
 
   if (!componentKey) {
     throw new Error("Missing componentKey parameter");
@@ -1235,7 +1292,22 @@ async function createComponentInstance(params) {
     instance.x = x;
     instance.y = y;
 
-    figma.currentPage.appendChild(instance);
+    // If parentId is provided, add to that parent, otherwise add to current page
+    if (parentId) {
+      const parentNode = await figma.getNodeByIdAsync(parentId);
+      if (!parentNode) {
+        throw new Error(`Parent node not found with ID: ${parentId}`);
+      }
+      
+      // Check if the parent node can have children
+      if (!("appendChild" in parentNode)) {
+        throw new Error(`Node type ${parentNode.type} cannot contain children: ${parentId}`);
+      }
+      
+      (parentNode as any).appendChild(instance);
+    } else {
+      figma.currentPage.appendChild(instance);
+    }
 
     return {
       id: instance.id,
@@ -1245,9 +1317,74 @@ async function createComponentInstance(params) {
       width: instance.width,
       height: instance.height,
       componentId: instance.componentId,
+      parentId: parentId || "currentPage",
     };
   } catch (error) {
     throw new Error(`Error creating component instance: ${error.message}`);
+  }
+}
+
+async function importComponent(params) {
+  console.log("importComponent", params);
+  const { componentKey, containerNodeId, x = 0, y = 0, name } = params || {};
+
+  if (!componentKey) {
+    throw new Error("Missing componentKey parameter");
+  }
+
+  if (!containerNodeId) {
+    throw new Error("Missing containerNodeId parameter");
+  }
+
+  // Get the container node
+  const containerNode = await figma.getNodeByIdAsync(containerNodeId);
+  if (!containerNode) {
+    throw new Error(`Container node not found with ID: ${containerNodeId}`);
+  }
+
+  // Check if the container node can have children
+  if (!("appendChild" in containerNode)) {
+    throw new Error(`Node type ${containerNode.type} cannot contain children: ${containerNodeId}`);
+  }
+
+  try {
+    // Import the component by key (works for both local and external components)
+    const component = await figma.importComponentByKeyAsync(componentKey);
+    if (!component) {
+      throw new Error(`Component with key ${componentKey} not found or could not be imported`);
+    }
+
+    // Create an instance of the component
+    const instance = component.createInstance();
+
+    // Set optional name if provided
+    if (name) {
+      instance.name = name;
+    }
+
+    // Position the instance within the container
+    instance.x = x;
+    instance.y = y;
+
+    // Add the instance to the container
+    (containerNode as any).appendChild(instance);
+
+    console.log(`Successfully imported component "${component.name}" as instance into container "${containerNode.name}"`);
+
+    return {
+      success: true,
+      instanceId: instance.id,
+      instanceName: instance.name,
+      componentId: component.id,
+      componentName: component.name,
+      containerName: containerNode.name,
+      containerId: containerNode.id,
+      x: instance.x,
+      y: instance.y,
+    };
+  } catch (error) {
+    console.error("Error importing component:", error);
+    throw new Error(`Failed to import component: ${error.message}`);
   }
 }
 
