@@ -716,24 +716,60 @@ server.tool(
   }
 );
 
-// Move Node Tool
+// Move or Append Node Tool - Unified for both coordinate and container movement
 server.tool(
-  "move_node",
-  "Move a node to a new position in Figma",
+  "move_or_append_node",
+  "Move a node to a new position or append it to a container in Figma. When x/y coordinates are provided, moves the node in coordinate space. When parentId is provided, appends the node to the parent container and ignores x/y coordinates.",
   {
     nodeId: z.string().describe("The ID of the node to move"),
-    x: z.number().describe("New X position"),
-    y: z.number().describe("New Y position"),
+    x: z.number().optional().describe("New X position (ignored if parentId is provided)"),
+    y: z.number().optional().describe("New Y position (ignored if parentId is provided)"),
+    parentId: z.string().optional().describe("The ID of the destination container node. When provided, x/y coordinates are ignored and the node is moved into this container"),
   },
-  async ({ nodeId, x, y }: any) => {
+  async ({ nodeId, x, y, parentId }: any) => {
     try {
-      const result = await sendCommandToFigma("move_node", { nodeId, x, y });
-      const typedResult = result as { name: string };
+      // If parentId is provided, use container movement (ignore x/y)
+      if (parentId) {
+        const result = await sendCommandToFigma("move_node_to_container", {
+          nodeId,
+          containerNodeId: parentId,
+        });
+        const typedResult = result as {
+          nodeId: string;
+          nodeName: string;
+          containerName: string;
+          oldParentName: string;
+        };
+        return {
+          content: [
+            {
+              type: "text",
+              text: `Successfully moved node "${typedResult.nodeName}" (ID: ${typedResult.nodeId}) from "${typedResult.oldParentName}" to container "${typedResult.containerName}"`,
+            },
+          ],
+        };
+      }
+
+      // If x/y coordinates are provided, use coordinate movement
+      if (x !== undefined && y !== undefined) {
+        const result = await sendCommandToFigma("move_node", { nodeId, x, y });
+        const typedResult = result as { name: string };
+        return {
+          content: [
+            {
+              type: "text",
+              text: `Moved node "${typedResult.name}" to position (${x}, ${y})`,
+            },
+          ],
+        };
+      }
+
+      // If neither parentId nor x/y coordinates are provided, return error
       return {
         content: [
           {
             type: "text",
-            text: `Moved node "${typedResult.name}" to position (${x}, ${y})`,
+            text: "Error: Either provide x/y coordinates for positional movement, or parentId for container movement",
           },
         ],
       };
@@ -751,47 +787,7 @@ server.tool(
   }
 );
 
-// Move Node to Container Tool
-server.tool(
-  "move_node_to_container",
-  "Move a node from its current parent to a new container, preserving the node ID",
-  {
-    nodeId: z.string().describe("The ID of the node to move"),
-    containerNodeId: z.string().describe("The ID of the destination container node"),
-  },
-  async ({ nodeId, containerNodeId }: any) => {
-    try {
-      const result = await sendCommandToFigma("move_node_to_container", {
-        nodeId,
-        containerNodeId,
-      });
-      const typedResult = result as {
-        nodeId: string;
-        nodeName: string;
-        containerName: string;
-        oldParentName: string;
-      };
-      return {
-        content: [
-          {
-            type: "text",
-            text: `Successfully moved node "${typedResult.nodeName}" (ID: ${typedResult.nodeId}) from "${typedResult.oldParentName}" to container "${typedResult.containerName}"`,
-          },
-        ],
-      };
-    } catch (error) {
-      return {
-        content: [
-          {
-            type: "text",
-            text: `Error moving node to container: ${error instanceof Error ? error.message : String(error)
-              }`,
-          },
-        ],
-      };
-    }
-  }
-);
+
 
 // Clone Node Tool
 server.tool(
@@ -2679,6 +2675,7 @@ type FigmaCommand =
   | "set_fill_color"
   | "set_variable_fill"
   | "set_stroke_color"
+  | "move_or_append_node"
   | "move_node"
   | "move_node_to_container"
   | "resize_node"
@@ -2763,10 +2760,17 @@ type CommandParams = {
     a?: number;
     weight?: number;
   };
+  move_or_append_node: {
+    nodeId: string;
+    x?: number;
+    y?: number;
+    parentId?: string;
+  };
   move_node: {
     nodeId: string;
-    x: number;
-    y: number;
+    x?: number;
+    y?: number;
+    parentId?: string;
   };
   move_node_to_container: {
     nodeId: string;
