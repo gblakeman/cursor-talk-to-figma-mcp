@@ -3,7 +3,9 @@
     "TalkToFigma": {
       "command": "bunx",
       "args": [
-        "cursor-talk-to-figma-mcp@latest"
+        "./dist/server.js",
+        "--port",
+        "3055"
       ]
     }
   }
