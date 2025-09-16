@@ -147,6 +147,12 @@ async function handleCommand(command, params) {
       return await deleteMultipleNodes(params);
     case "get_styles":
       return await getStyles();
+    case "get_local_components":
+      return await getLocalComponents();
+    // case "get_team_components":
+    //   return await getTeamComponents();
+    case "create_component_instance":
+      return await createComponentInstance(params);
     case "import_component":
       return await importComponent(params);
     case "export_node_as_image":
@@ -1238,8 +1244,87 @@ async function getStyles() {
   };
 }
 
+async function getLocalComponents() {
+  await figma.loadAllPagesAsync();
 
+  const components = figma.root.findAllWithCriteria({
+    types: ["COMPONENT"],
+  });
 
+  return {
+    count: components.length,
+    components: components.map((component) => ({
+      id: component.id,
+      name: component.name,
+      key: "key" in component ? component.key : null,
+    })),
+  };
+}
+
+// async function getTeamComponents() {
+//   try {
+//     const teamComponents =
+//       await figma.teamLibrary.getAvailableComponentsAsync();
+
+//     return {
+//       count: teamComponents.length,
+//       components: teamComponents.map((component) => ({
+//         key: component.key,
+//         name: component.name,
+//         description: component.description,
+//         libraryName: component.libraryName,
+//       })),
+//     };
+//   } catch (error) {
+//     throw new Error(`Error getting team components: ${error.message}`);
+//   }
+// }
+
+async function createComponentInstance(params) {
+  const { componentKey, x = 0, y = 0, parentId } = params || {};
+
+  if (!componentKey) {
+    throw new Error("Missing componentKey parameter");
+  }
+
+  try {
+    const component = await figma.importComponentByKeyAsync(componentKey);
+    const instance = component.createInstance();
+
+    instance.x = x;
+    instance.y = y;
+
+    // If parentId is provided, add to that parent, otherwise add to current page
+    if (parentId) {
+      const parentNode = await figma.getNodeByIdAsync(parentId);
+      if (!parentNode) {
+        throw new Error(`Parent node not found with ID: ${parentId}`);
+      }
+      
+      // Check if the parent node can have children
+      if (!("appendChild" in parentNode)) {
+        throw new Error(`Node type ${parentNode.type} cannot contain children: ${parentId}`);
+      }
+      
+      (parentNode as any).appendChild(instance);
+    } else {
+      figma.currentPage.appendChild(instance);
+    }
+
+    return {
+      id: instance.id,
+      name: instance.name,
+      x: instance.x,
+      y: instance.y,
+      width: instance.width,
+      height: instance.height,
+      componentId: instance.componentId,
+      parentId: parentId || "currentPage",
+    };
+  } catch (error) {
+    throw new Error(`Error creating component instance: ${error.message}`);
+  }
+}
 
 async function importComponent(params) {
   console.log("importComponent", params);

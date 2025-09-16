@@ -1037,6 +1037,35 @@ server.tool(
   }
 );
 
+// Get Local Components Tool
+server.tool(
+  "get_local_components",
+  "Get all local components from the Figma document",
+  {},
+  async () => {
+    try {
+      const result = await sendCommandToFigma("get_local_components");
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify(result)
+          }
+        ]
+      };
+    } catch (error) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Error getting local components: ${error instanceof Error ? error.message : String(error)
+              }`,
+          },
+        ],
+      };
+    }
+  }
+);
 
 // Get Annotations Tool
 server.tool(
@@ -1240,6 +1269,46 @@ server.tool(
   }
 );
 
+// Create Component Instance Tool
+server.tool(
+  "create_component_instance",
+  "Create an instance of a component in Figma",
+  {
+    componentKey: z.string().describe("Key of the component to instantiate"),
+    x: z.number().describe("X position"),
+    y: z.number().describe("Y position"),
+    parentId: z.string().optional().describe("Optional parent node ID to add the instance to"),
+  },
+  async ({ componentKey, x, y, parentId }: any) => {
+    try {
+      const result = await sendCommandToFigma("create_component_instance", {
+        componentKey,
+        x,
+        y,
+        parentId,
+      });
+      const typedResult = result as any;
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify(typedResult),
+          }
+        ]
+      }
+    } catch (error) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Error creating component instance: ${error instanceof Error ? error.message : String(error)
+              }`,
+          },
+        ],
+      };
+    }
+  }
+);
 
 // Import Component Tool
 server.tool(
@@ -2613,6 +2682,8 @@ type FigmaCommand =
   | "delete_node"
   | "delete_multiple_nodes"
   | "get_styles"
+  | "get_local_components"
+  | "create_component_instance"
   | "import_component"
   | "get_instance_overrides"
   | "set_instance_overrides"
@@ -2718,6 +2789,14 @@ type CommandParams = {
     nodeIds: string[];
   };
   get_styles: Record<string, never>;
+  get_local_components: Record<string, never>;
+  get_team_components: Record<string, never>;
+  create_component_instance: {
+    componentKey: string;
+    x: number;
+    y: number;
+    parentId?: string;
+  };
   import_component: {
     componentKey: string;
     containerNodeId: string;
