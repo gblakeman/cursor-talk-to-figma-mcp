@@ -2705,7 +2705,8 @@ type FigmaCommand =
   | "set_item_spacing"
   | "get_reactions"
   | "set_default_connector"
-  | "create_connections";
+  | "create_connections"
+  | "component_properties";
 
 type CommandParams = {
   get_document_info: Record<string, never>;
@@ -2870,6 +2871,10 @@ type CommandParams = {
       endNodeId: string;
       text?: string;
     }>;
+  };
+  component_properties: {
+    nodeId: string;
+    properties?: Record<string, any>;
   };
 
 };
@@ -3102,6 +3107,42 @@ function sendCommandToFigma(
     ws.send(JSON.stringify(request));
   });
 }
+
+// Component Properties Tool
+server.tool(
+  "component_properties",
+  "Get or set component properties on a component instance in Figma. If properties are provided, they will be set. If no properties are provided, current properties will be returned.",
+  {
+    nodeId: z.string().describe("The ID of the component instance"),
+    properties: z.record(z.any()).optional().describe("Optional object containing property values to set. If not provided, current properties will be returned."),
+  },
+  async ({ nodeId, properties }: any) => {
+    try {
+      const result = await sendCommandToFigma("component_properties", {
+        nodeId,
+        properties,
+      });
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify(result, null, 2),
+          },
+        ],
+      };
+    } catch (error) {
+      const action = properties !== undefined ? "setting" : "getting";
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Error ${action} component properties: ${error instanceof Error ? error.message : String(error)}`,
+          },
+        ],
+      };
+    }
+  }
+);
 
 // Update the join_channel tool
 server.tool(
