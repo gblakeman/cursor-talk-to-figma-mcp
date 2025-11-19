@@ -237,6 +237,8 @@ async function handleCommand(command, params) {
       return await setDefaultConnector(params);
     case "create_connections":
       return await createConnections(params);
+    case "component_properties":
+      return await componentProperties(params);
     default:
       throw new Error(`Unknown command: ${command}`);
   }
@@ -4111,4 +4113,83 @@ async function createConnections(params) {
     count: results.length,
     connections: results
   };
+}
+
+async function componentProperties(params) {
+  const { nodeId, properties } = params || {};
+
+  if (!nodeId) {
+    throw new Error("Missing nodeId parameter");
+  }
+
+  const node = await figma.getNodeByIdAsync(nodeId);
+  if (!node) {
+    throw new Error(`Node not found with ID: ${nodeId}`);
+  }
+
+  // Check if the node is an instance
+  if (node.type !== "INSTANCE") {
+    throw new Error(`Node is not a component instance: ${nodeId} (type: ${node.type})`);
+  }
+
+  // Check if the node has component properties
+  if (!("componentProperties" in node) || !("setProperties" in node)) {
+    throw new Error(`Node does not support component properties: ${nodeId}`);
+  }
+
+  // Helper function to convert component properties to readable format
+  const convertProperties = (componentProps) => {
+    const readableProperties = {};
+    for (const [key, property] of Object.entries(componentProps)) {
+      readableProperties[key] = {
+        type: (property as any).type,
+        value: (property as any).value,
+        preferredValues: (property as any).preferredValues || undefined,
+      };
+    }
+    return readableProperties;
+  };
+
+  if (properties !== undefined) {
+    // Set properties mode
+    if (typeof properties !== "object") {
+      throw new Error("Invalid properties parameter - must be an object");
+    }
+
+    try {
+      // Set the properties
+      node.setProperties(properties);
+
+      // Get the updated properties to return
+      const updatedProperties = node.componentProperties || {};
+      const readableProperties = convertProperties(updatedProperties);
+
+      return {
+        success: true,
+        action: "set",
+        nodeId: node.id,
+        nodeName: node.name,
+        componentId: (node as any).componentId,
+        propertiesSet: properties,
+        updatedProperties: readableProperties,
+        propertiesCount: Object.keys(readableProperties).length,
+      };
+    } catch (error) {
+      throw new Error(`Error setting component properties: ${error.message}`);
+    }
+  } else {
+    // Get properties mode
+    const componentProps = node.componentProperties || {};
+    const readableProperties = convertProperties(componentProps);
+
+    return {
+      success: true,
+      action: "get",
+      nodeId: node.id,
+      nodeName: node.name,
+      componentId: (node as any).componentId,
+      properties: readableProperties,
+      propertiesCount: Object.keys(readableProperties).length,
+    };
+  }
 }
